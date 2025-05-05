@@ -1,0 +1,15 @@
+<!-- Simple upload form posting to gs:// via signed URL or gcloud auth -->
+<!DOCTYPE html><html><body>
+    <h1>LeftoverChef</h1>
+    <input type="file" id="fileInput" />
+    <button onclick="upload()">Upload</button>
+    <pre id="output"></pre>
+    <script>
+      async function upload() {
+        const f = document.getElementById('fileInput').files[0];
+        const url = `https://storage.googleapis.com/upload/storage/v1/b/${window.BUCKET}/o?uploadType=media&name=${f.name}`;
+        const res = await fetch(url, {method:'POST', body:f});
+        document.getElementById('output').innerText = await res.text();
+      }
+    </script>
+  </body></html>

@@ -1,0 +1,4 @@
+fastapi
+google-cloud-language
+google-cloud-storage
+requests

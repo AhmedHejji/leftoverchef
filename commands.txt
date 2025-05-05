@@ -1,0 +1,87 @@
+export PROJECT_ID=qwiklabs-gcp-04-d3dc206d15fe
+
+gcloud config set functions/region us-west1
+gcloud config set compute/region us-west1
+
+##########################
+
+gcloud services enable \
+  functions.googleapis.com \
+  storage.googleapis.com \
+  run.googleapis.com \
+  artifactregistry.googleapis.com
+
+##########################
+
+gcloud artifacts repositories create yolo-repo \
+  --repository-format=docker \
+  --location=us-west1 \
+  --description="Docker repo for YOLOv8 app"
+
+gcloud auth configure-docker us-west1-docker.pkg.dev
+
+##########################
+## Local build then push
+
+docker build -t us-west1-docker.pkg.dev/qwiklabs-gcp-04-d3dc206d15fe/yolo-repo/yolo-server:latest yolo-server/
+docker push us-west1-docker.pkg.dev/qwiklabs-gcp-04-d3dc206d15fe/yolo-repo/yolo-server:latest
+``` :contentReference[oaicite:1]{index=1}  
+
+##########################
+## Remote build and push
+
+cd yolo-server
+gcloud builds submit . \
+  --tag=us-west1-docker.pkg.dev/qwiklabs-gcp-04-d3dc206d15fe/yolo-repo/yolo-server:latest
+
+##########################
+## Deploy to Cloud Run
+
+```bash
+gcloud run deploy yolo-server \
+  --image=us-west1-docker.pkg.dev/qwiklabs-gcp-04-d3dc206d15fe/yolo-repo/yolo-server:latest \
+  --region=us-west1 \
+  --memory=512Mi \
+  --allow-unauthenticated
+
+----
+
+gcloud run deploy yolo-server \
+  --image us-west1-docker.pkg.dev/qwiklabs-gcp-04-d3dc206d15fe/yolo-repo/yolo-server:latest \
+  --region us-west1 \
+  --platform managed \
+  --memory 1Gi \
+  --allow-unauthenticated \
+  --port 8080
+
+#########################
+
+export PHOTO_BUCKET="leftoverchef-photos-$(date +%s)"
+gsutil mb -l us-west1 gs://$PHOTO_BUCKET/      # regional bucket    
+gsutil iam ch allUsers:objectViewer gs://$PHOTO_BUCKET
+
+gsutil web set -m index.html -e 404.html gs://$PHOTO_BUCKET
+gsutil cp frontend/index.html frontend/404.html gs://$PHOTO_BUCKET
+
+
+#########################
+## Update yolo-server URL and deploy function
+
+cd functions
+gcloud functions deploy process_image \
+  --runtime python39 \
+  --region us-west1 \
+  --trigger-resource $PHOTO_BUCKET \
+  --trigger-event google.storage.object.finalize \
+  --no-gen2 \
+  --set-env-vars YOLO_URL=https://yolo-server-419102366268.us-west1.run.app,RECIPE_API_KEY=2e5049d07446416d9a11264351de96b6
+
+
+########################
+
+gsutil cp /Users/ahmed/vscodeProjects/leftoverchef/fridge.jpg gs://$PHOTO_BUCKET/
+gsutil cat gs://$PHOTO_BUCKET/results/fridge.jpg.txt
+
+########################
+
+gcloud functions logs read process_image --region=us-west1 --limit 20
